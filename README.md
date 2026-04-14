@@ -226,12 +226,17 @@ AZURE_API_KEY=
 AZURE_API_VERSION=
 GEMINI_API_KEY=
 TOGETHER_API_KEY=
+OPENROUTER_API_KEY=
+# Optional OpenRouter headers:
+# OPENROUTER_SITE_URL=https://your-site.example
+# OPENROUTER_APP_NAME=DataAgentBench
 ```
 
 Currently, we support 
 - Microsoft Azure API (for GPT models)
 - Google Gemini API (for Gemini models)
 - Together.AI API (for Kimi and Qwen models)
+- OpenRouter API (OpenAI-compatible endpoint, use `--llm openrouter/<provider>/<model>`)
 
 If you want to use a model not yet supported by default, you may register it in [DataAgent.py](./common_scaffold/DataAgent.py):
 ```python
@@ -262,7 +267,18 @@ python run_agent.py \
     --query_id 1 \
     --llm gpt-5-mini \
     --iterations 100 \
-    --use_hints \
+    --root_name run_0
+```
+
+`--use_hints` is enabled by default. Use `--no_hints` to disable hints.
+
+**OpenRouter example**:
+```bash
+python run_agent.py \
+    --dataset stockindex \
+    --query_id 1 \
+    --llm openrouter/openai/gpt-4o-mini \
+    --iterations 60 \
     --root_name run_0
 ```
 

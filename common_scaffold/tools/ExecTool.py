@@ -6,6 +6,7 @@ from pathlib import Path
 from autogen_core import CancellationToken
 from autogen_core.code_executor import CodeBlock
 from autogen_ext.code_executors.docker import DockerCommandLineCodeExecutor
+from autogen_ext.code_executors.local import LocalCommandLineCodeExecutor
 import logging
 import os
 import json
@@ -29,6 +30,8 @@ class ExecTool(BaseTool):
         self.logger.info(f"\twork_dir: {self.work_dir}")
         self.timeout = timeout
         self.logger.info(f"\ttimeout: {self.timeout} seconds")
+        self.executor_backend = os.getenv("DAB_EXECUTOR", "docker").strip().lower()
+        self.logger.info(f"\texecutor_backend: {self.executor_backend}")
         self.artifact_log_path = os.path.join(os.path.dirname(self.log_path), f"{name}_artifacts.jsonl")
         self.logger.info(f"\tartifact_log: {self.artifact_log_path}")
 
@@ -75,12 +78,20 @@ class ExecTool(BaseTool):
     # ---------------------------------------------------------
 
     def _start_executor(self):
-        """Start a fresh docker executor."""
-        self.logger.debug("Starting Docker executor...")
-        self._executor = DockerCommandLineCodeExecutor(
-            image="python-data:3.12",
-            work_dir=self.work_dir,
-        )
+        """Start a fresh code executor."""
+        if self.executor_backend == "local":
+            self.logger.warning("Starting LOCAL executor (DAB_EXECUTOR=local). This is for dev/debug only.")
+            self._executor = LocalCommandLineCodeExecutor(
+                timeout=self.timeout,
+                work_dir=self.work_dir,
+            )
+        else:
+            self.logger.debug("Starting Docker executor...")
+            self._executor = DockerCommandLineCodeExecutor(
+                image="python-data:3.12",
+                timeout=self.timeout,
+                work_dir=self.work_dir,
+            )
         self._loop.run_until_complete(self._executor.start())
 
     def _stop_executor(self):
