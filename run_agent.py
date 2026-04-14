@@ -29,7 +29,8 @@ if __name__ == "__main__":
     parser.add_argument("--query_id", type=int, required=True)
     parser.add_argument("--llm", type=str, default="gpt-4o-mini", help="deployment")
     parser.add_argument("--iterations", type=int, default=100, help="Maximum number of iterations for the agent.")
-    parser.add_argument("--use_hints", action="store_true", help="Whether to use DB description with hints.")
+    parser.add_argument("--use_hints", action="store_true", default=True, help="Whether to use DB description with hints (default: enabled).")
+    parser.add_argument("--no_hints", action="store_false", dest="use_hints", help="Disable DB description hints.")
     parser.add_argument("--root_name", type=str, required=False, help="Root directory name.")
 
     args = parser.parse_args()

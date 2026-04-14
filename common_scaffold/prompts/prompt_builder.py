@@ -14,6 +14,8 @@ KIMI_TOOL_CALL_INSTRUCTINOS = """2. Inside execute_python code you may read stor
 
 CLAUDE_TOOL_CALL_INSTRUCTIONS = """2. Inside execute_python code you may read storage entries directly as variables using the provided key names. You should directly use the key names as variable names in your code, e.g., if the tool call id is "toolu_1", you can access its result via the variable `var_toolu_1` in your code, without quotes or other modifications."""
 
+OPENROUTER_TOOL_CALL_INSTRUCTIONS = """2. Inside execute_python code you may read storage entries using the provided key names, e.g., if the tool call id is 'call-1', use `locals()['var_call-1']` (or `globals()['var_call-1']`) to access its result."""
+
 SYSTEM_PROMPT = """
 You are a data analysis agent. Use only the tools listed below to answer the user's query, based on the provided DATABASE DESCRIPTION for logical database names and their types (SQL or MongoDB), and the results of previous tool calls.
 
@@ -42,6 +44,9 @@ KEY RULES (must follow exactly):
 6. Use execute_python for data processing as needed. 
 7. When using execute_python, your code will be quoted by triple double-quotes and passed as a string to `exec(...)` for execution in a Python 3.12 environment with only pandas and pyarrow installed. So you must ensure your code is compatible with this execution method. For exampe, do not use triple double-quotes in your code, as they may interfere with parsing. Do not use non-built-in or non-installed packages.
 8. When using execute_python, your code must print the result at the end exactly as shown in the PRINT FORMAT section below. The printed result must be a string that can be successfully parsed by json.loads() without errors.
+9. Do not invent entity identifiers (e.g., index symbols, IDs, keys). Derive them from database results (for example, via DISTINCT queries) before selecting a final answer.
+10. For financial "intraday volatility" questions, compute relative volatility as (High - Low) / Open unless the user explicitly asks for absolute spread.
+11. If date/time columns are stored as strings with mixed formats, parse them to datetime in Python before applying date filters. Do not rely on lexicographic string comparison for date ranges.
 
 PRINT FORMAT (must match exactly):
 ----BEGIN PRINT FORMAT----
@@ -52,7 +57,7 @@ print(your_json_serializable_string_here)
 For simple types (int, float, str, bool, None), you may use json.dumps() to produce a valid JSON string.
 For complex or non-JSON-serializable types, you must convert them into JSON-compatible forms before printing.
 For lists or dictionaries, you must ensure that all nested elements are also converted into JSON-serializable types.
-9. Return the final answer only via a single return_answer tool call. Do not include extra text, explanation, or formatting.
+12. Return the final answer only via a single return_answer tool call. Do not include extra text, explanation, or formatting.
 
 EXAMPLES:
 - query_db:
@@ -76,19 +81,25 @@ Do not output explanations, reasoning, or any natural language outside of the re
 
 def init_messages(user_query: str, db_description: str, deployment_name: str, system_prompt: str=SYSTEM_PROMPT) -> list[dict]:
     system_prompt_suffix = ""
-    if "gemini" in deployment_name.lower():
+    deployment_name_lower = deployment_name.lower()
+    normalized_name = deployment_name
+    if deployment_name_lower.startswith("openrouter/"):
+        normalized_name = deployment_name.split("/", 1)[1]
+        deployment_name_lower = normalized_name.lower()
+        tool_call_instructions = OPENROUTER_TOOL_CALL_INSTRUCTIONS
+    elif "gemini" in deployment_name_lower:
         tool_call_instructions = GEMINI_TOOL_CALL_INSTRUCTIONS
-        if deployment_name.lower() == "gemini-2.5-flash":
+        if deployment_name_lower == "gemini-2.5-flash":
             tool_call_instructions = GEMINI_25FLASH_TOOL_CALL_INSTRUCTIONS
             system_prompt_suffix = "\n\n" + GEMINI_25FLASH_WARNING # MALFORMED_FUCTION_CALL fix: https://www.linkedin.com/pulse/3-step-fix-persistent-malformedfunctioncall-error-production-gupta-fssne/
-    elif "gpt" in deployment_name.lower():
+    elif "gpt" in deployment_name_lower:
         tool_call_instructions = GPT_TOOL_CALL_INSTRUCTIONS
-    elif "kimi" in deployment_name.lower():
+    elif "kimi" in deployment_name_lower:
         tool_call_instructions = KIMI_TOOL_CALL_INSTRUCTINOS
-    elif "claude" in deployment_name.lower():
+    elif "claude" in deployment_name_lower:
         tool_call_instructions = CLAUDE_TOOL_CALL_INSTRUCTIONS
     else:
-        raise ValueError(f"Unknown deployment_name: {deployment_name}")
+        raise ValueError(f"Unknown deployment_name: {normalized_name}")
     
     return [
         {
